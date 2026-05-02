@@ -100,3 +100,24 @@ def read_arguments_for_post(post_id: int, db: Session = Depends(get_db)):
     # Query the arguments table filtering by the specific post_id
     arguments = db.query(models.Argument).filter(models.Argument.post_id == post_id).all()
     return arguments
+
+# Endpoint to delete a post (Hidden Admin Mode)
+@app.delete("/posts/{post_id}")
+def delete_post(post_id: int, admin_key: str, db: Session = Depends(get_db)):
+    # Simple security check: Only allow deletion if the correct secret key is provided
+    if admin_key != "supersecretdev":
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin key")
+        
+    # Find the post in the database
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    
+    # If the post doesn't exist, return a 404 error
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+        
+    # Delete the post from the database
+    db.delete(post)
+    db.commit()
+    
+    return {"message": f"Post {post_id} has been permanently deleted"}
+
