@@ -42,7 +42,8 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
 @app.get("/posts/", response_model=list[schemas.PostResponse])
 def read_posts(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     # Fetch posts from the database with pagination (skip and limit)
-    posts = db.query(models.Post).offset(skip).limit(limit).all()
+    # posts = db.query(models.Post).offset(skip).limit(limit).all()
+    posts = db.query(models.Post).order_by(models.Post.created_at.desc()).offset(skip).limit(limit).all()
     return posts
 
 # Endpoint to vote on a specific post

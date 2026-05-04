@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 
 # Schema for creating a new Post (what we expect from the Android app)
 class PostCreate(BaseModel):
@@ -13,6 +14,7 @@ class PostResponse(BaseModel):
     image_url: str
     bin_votes: int
     win_votes: int
+    created_at: datetime
 
     # This tells Pydantic to read the data even if it's not a regular dictionary (SQLAlchemy model)
     class Config:
@@ -33,6 +35,7 @@ class ArgumentCreate(ArgumentBase):
 class ArgumentResponse(ArgumentBase):
     id: int
     post_id: int
+    created_at: datetime
 
     class Config:
         orm_mode = True
