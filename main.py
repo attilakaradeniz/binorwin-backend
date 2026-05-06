@@ -116,24 +116,57 @@ def read_posts(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return posts
 
 # endpoint to vote on a specific post
+# Endpoint to vote on a specific post (Protected: Requires Login)
 @app.post("/posts/{post_id}/vote", response_model=schemas.PostResponse)
-def vote_on_post(post_id: int, vote_type: str, db: Session = Depends(get_db)):
-    # finding the post in the database using its ID
+def vote_on_post(
+    post_id: int, 
+    vote_type: str, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user) # NEW: Require login to vote!
+):
+    # Check if the vote type is valid first
+    if vote_type not in ["bin", "win"]:
+        raise HTTPException(status_code=400, detail="Invalid vote type. Use 'bin' or 'win'")
+
+    # Find the post
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
-    
-    # if no post, return a 404 error
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
         
-    # incrementing the correct vote counter based on user's action
-    if vote_type == "bin":
-        post.bin_votes += 1
-    elif vote_type == "win":
-        post.win_votes += 1
+    # Check if this user has already voted on this specific post
+    existing_vote = db.query(models.Vote).filter(
+        models.Vote.post_id == post_id, 
+        models.Vote.user_id == current_user.id
+    ).first()
+    
+    if existing_vote:
+        # User has voted before. Let's see what they clicked.
+        if existing_vote.vote_type == vote_type:
+            # TOGGLE OFF: They clicked the same button again. Remove the vote.
+            db.delete(existing_vote)
+            if vote_type == "bin":
+                post.bin_votes -= 1
+            else:
+                post.win_votes -= 1
+        else:
+            # SWITCH VOTE: They changed their mind (e.g., from bin to win)
+            existing_vote.vote_type = vote_type
+            if vote_type == "bin":
+                post.win_votes -= 1
+                post.bin_votes += 1
+            else:
+                post.bin_votes -= 1
+                post.win_votes += 1
     else:
-        raise HTTPException(status_code=400, detail="Invalid vote type. Use 'bin' or 'win'")
-        
-    # saving the updated post to the database
+        # NEW VOTE: User has never voted on this post
+        new_vote = models.Vote(post_id=post_id, user_id=current_user.id, vote_type=vote_type)
+        db.add(new_vote)
+        if vote_type == "bin":
+            post.bin_votes += 1
+        else:
+            post.win_votes += 1
+            
+    # Save all changes to the database
     db.commit()
     db.refresh(post)
     
@@ -177,6 +210,59 @@ def read_arguments_for_post(post_id: int, db: Session = Depends(get_db)):
     # query the arguments table filtering by the specific post_id
     arguments = db.query(models.Argument).filter(models.Argument.post_id == post_id).all()
     return arguments
+
+# Endpoint to update (edit) an existing argument (Protected)
+@app.put("/arguments/{argument_id}", response_model=schemas.ArgumentResponse)
+def update_argument(
+    argument_id: int, 
+    updated_argument: schemas.ArgumentCreate, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # 1. Find the argument in the database
+    argument = db.query(models.Argument).filter(models.Argument.id == argument_id).first()
+    
+    # If it doesn't exist, return 404
+    if not argument:
+        raise HTTPException(status_code=404, detail="Argument not found")
+        
+    # 2. SECURITY CHECK: Ensure the logged-in user is the actual owner of this argument
+    if argument.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this argument")
+        
+    # 3. Update the content and save
+    argument.content = updated_argument.content
+    argument.action_type = updated_argument.action_type
+    
+    db.commit()
+    db.refresh(argument)
+    
+    return argument
+
+# Endpoint to delete an existing argument (Protected)
+@app.delete("/arguments/{argument_id}")
+def delete_argument(
+    argument_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # 1. Find the argument
+    argument = db.query(models.Argument).filter(models.Argument.id == argument_id).first()
+    
+    if not argument:
+        raise HTTPException(status_code=404, detail="Argument not found")
+        
+    # 2. SECURITY CHECK: Only the owner can delete their argument
+    if argument.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this argument")
+        
+    # 3. Delete from database
+    db.delete(argument)
+    db.commit()
+    
+    return {"message": "Argument successfully deleted"}
+
+
 
 # endpoint to delete a post (Hidden Admin Mode)
 @app.delete("/posts/{post_id}")

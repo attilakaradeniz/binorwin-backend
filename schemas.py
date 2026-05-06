@@ -79,4 +79,5 @@ class ArgumentResponse(ArgumentBase):
     owner: Optional[UserResponse] = None    
 
     class Config:
-        orm_mode = True
+        # orm_mode = True
+        from_attributes = True  # This allows Pydantic to read SQLAlchemy models directly

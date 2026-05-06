@@ -48,3 +48,10 @@ class Argument(Base):
     # Relationships
     post = relationship("Post", back_populates="arguments")
     owner = relationship("User", back_populates="arguments")
+
+class Vote(Base):
+    __tablename__ = "votes" 
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), primary_key=True)
+    vote_type = Column(String)  # "bin" or "win"
