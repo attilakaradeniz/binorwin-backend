@@ -1,14 +1,23 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from datetime import timedelta
 import models, schemas, auth
 from database import engine, SessionLocal
+import os
+import shutil
+import uuid
 
-# Create the database tables based on our models
+# create the database tables based on our models
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+# media server setup
+os.makedirs("uploads", exist_ok=True)  # Ensure the uploads directory exists
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # OAuth2 setup: This tells FastAPI where to look for the token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -79,7 +88,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- CORE ROUTES ---
+# basic routes
 
 # Root endpoint just to check if the server is alive
 @app.get("/")
@@ -122,34 +131,34 @@ def vote_on_post(
     post_id: int, 
     vote_type: str, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user) # NEW: Require login to vote!
+    current_user: models.User = Depends(get_current_user) # require login to vote!
 ):
-    # Check if the vote type is valid first
+    # check if the vote type is valid first
     if vote_type not in ["bin", "win"]:
         raise HTTPException(status_code=400, detail="Invalid vote type. Use 'bin' or 'win'")
 
-    # Find the post
+    # find the post
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
         
-    # Check if this user has already voted on this specific post
+    # check if this user has already voted on this specific post
     existing_vote = db.query(models.Vote).filter(
         models.Vote.post_id == post_id, 
         models.Vote.user_id == current_user.id
     ).first()
     
     if existing_vote:
-        # User has voted before. Let's see what they clicked.
+        # user has voted before. Let's see what they clicked.
         if existing_vote.vote_type == vote_type:
-            # TOGGLE OFF: They clicked the same button again. Remove the vote.
+            # toggle: user clicked the same button again. Remove the vote.
             db.delete(existing_vote)
             if vote_type == "bin":
                 post.bin_votes -= 1
             else:
                 post.win_votes -= 1
         else:
-            # SWITCH VOTE: They changed their mind (e.g., from bin to win)
+            # switch vote : They changed their mind (e.g., from bin to win)
             existing_vote.vote_type = vote_type
             if vote_type == "bin":
                 post.win_votes -= 1
@@ -158,7 +167,7 @@ def vote_on_post(
                 post.bin_votes -= 1
                 post.win_votes += 1
     else:
-        # NEW VOTE: User has never voted on this post
+        #  user has never voted on this post
         new_vote = models.Vote(post_id=post_id, user_id=current_user.id, vote_type=vote_type)
         db.add(new_vote)
         if vote_type == "bin":
@@ -166,7 +175,7 @@ def vote_on_post(
         else:
             post.win_votes += 1
             
-    # Save all changes to the database
+    # save all changes to the database
     db.commit()
     db.refresh(post)
     
@@ -180,7 +189,7 @@ def create_argument_for_post(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # First, verify that the post actually exists
+    # first, verify that the post actually exists
     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -226,7 +235,7 @@ def update_argument(
     # 1. Find the argument in the database
     argument = db.query(models.Argument).filter(models.Argument.id == argument_id).first()
     
-    # If it doesn't exist, return 404
+    # if it doesn't exist, return 404
     if not argument:
         raise HTTPException(status_code=404, detail="Argument not found")
         
@@ -243,7 +252,7 @@ def update_argument(
     
     return argument
 
-# Endpoint to delete an existing argument (Protected)
+# endpoint to delete an existing argument (Protected)
 @app.delete("/arguments/{argument_id}")
 def delete_argument(
     argument_id: int, 
@@ -312,11 +321,11 @@ def like_argument(
     ).first()
     
     if existing_like:
-        # TOGGLE OFF: User clicked the heart again, remove the like
+        # toggle: user clicked the heart again, remove the like
         db.delete(existing_like)
         argument.likes_count -= 1
     else:
-        # TOGGLE ON: User liked the argument
+        # toggle: user liked the argument
         new_like = models.ArgumentLike(argument_id=argument_id, user_id=current_user.id)
         db.add(new_like)
         argument.likes_count += 1
@@ -326,3 +335,20 @@ def like_argument(
     db.refresh(argument)
 
     return argument
+
+@app.post("/upload/", response_model=dict)
+def upload_image(file: UploadFile = File(...)),
+    current_user: models.User = Depends(get_current_user)
+    ):
+    # Generate a unique filename to avoid collisions
+    file_extension = file.filename.split(".")[-1]
+    unique_filename = f"{uuid.uuid4()}.{file_extension}"
+    file_path = f"uploads/{unique_filename}"
+
+    # Save the uploaded file to the uploads directory
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return {"image_url": f"http://localhost:8000/uploads/{unique_filename}"}
+
+    
