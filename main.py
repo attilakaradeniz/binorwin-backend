@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, UploadFile, File
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -337,7 +338,7 @@ def like_argument(
     return argument
 
 @app.post("/upload/", response_model=dict)
-def upload_image(file: UploadFile = File(...)),
+def upload_image(file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user)
     ):
     # Generate a unique filename to avoid collisions
@@ -351,4 +352,3 @@ def upload_image(file: UploadFile = File(...)),
     
     return {"image_url": f"http://localhost:8000/uploads/{unique_filename}"}
 
-    
