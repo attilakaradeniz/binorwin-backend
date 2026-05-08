@@ -26,6 +26,9 @@ class Post(Base):
     win_votes = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+    # counter for arguments to easily show "View Arguments (3)" in Android
+    arguments_count = Column(Integer, default=0)
+    
     # Foreign key linking the post to the user who created it
     owner_id = Column(Integer, ForeignKey("users.id"))
 
@@ -42,6 +45,9 @@ class Argument(Base):
     content = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+    # counter for likes to easily show the heart count
+    likes_count = Column(Integer, default=0)
+    
     # Foreign key linking the argument to the user who created it
     owner_id = Column(Integer, ForeignKey("users.id"))
 
@@ -55,3 +61,11 @@ class Vote(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), primary_key=True)
     vote_type = Column(String)  # "bin" or "win"
+
+# table to prevent users from liking the same argument multiple times
+class ArgumentLike(Base):
+    __tablename__ = "argument_likes"
+    
+    # Composite primary key so a user can only have ONE like per argument
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    argument_id = Column(Integer, ForeignKey("arguments.id", ondelete="CASCADE"), primary_key=True)

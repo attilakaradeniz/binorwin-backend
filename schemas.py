@@ -49,9 +49,13 @@ class PostResponse(BaseModel):
     owner_id: Optional[int] = None
     owner: Optional[UserResponse] = None    
 
-    # This tells Pydantic to read the data even if it's not a regular dictionary (SQLAlchemy model)
+    # counter for arguments to easily show "View Arguments (3)"
+    arguments_count: int = 0    
+
+    # This tells Pydantic to read the data even if it is not a regular dictionary (SQLAlchemy model)
     class Config:
-        orm_mode = True
+        # orm_mode = True
+        from_attributes = True # updated to prevent warnings
 
 
 # argument schemas
@@ -77,6 +81,9 @@ class ArgumentResponse(ArgumentBase):
     # temporaryly user id & response OPTIONAL (later will be removed)
     owner_id: Optional[int] = None
     owner: Optional[UserResponse] = None    
+
+    # counter for likes to show the heart count
+    likes_count: int = 0
 
     class Config:
         # orm_mode = True

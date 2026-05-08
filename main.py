@@ -199,6 +199,10 @@ def create_argument_for_post(
     )
     
     db.add(new_argument)
+
+    # increment the argument counter for this post
+    post.arguments_count += 1
+
     db.commit()
     db.refresh(new_argument)
     
@@ -208,7 +212,7 @@ def create_argument_for_post(
 @app.get("/posts/{post_id}/arguments", response_model=list[schemas.ArgumentResponse])
 def read_arguments_for_post(post_id: int, db: Session = Depends(get_db)):
     # query the arguments table filtering by the specific post_id
-    arguments = db.query(models.Argument).filter(models.Argument.post_id == post_id).all()
+    arguments = db.query(models.Argument).filter(models.Argument.post_id == post_id).order_by(models.Argument.created_at.desc()).all()
     return arguments
 
 # Endpoint to update (edit) an existing argument (Protected)
@@ -255,6 +259,10 @@ def delete_argument(
     # 2. SECURITY CHECK: Only the owner can delete their argument
     if argument.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this argument")
+    
+    post = db.query(models.Post).filter(models.Post.id == argument.post_id).first()
+    if post and post.arguments_count > 0:
+        post.arguments_count -= 1
         
     # 3. Delete from database
     db.delete(argument)
@@ -283,3 +291,38 @@ def delete_post(post_id: int, admin_key: str, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": f"Post {post_id} has been permanently deleted"}
+
+
+# Endpoint to like or unlike an argument (Protected)
+@app.post("/arguments/{argument_id}/like", response_model=schemas.ArgumentResponse)
+def like_argument(
+    argument_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # 1. Find the argument
+    argument = db.query(models.Argument).filter(models.Argument.id == argument_id).first()
+    if not argument:
+        raise HTTPException(status_code=404, detail="Argument not found")
+        
+    # 2. Check if the user has already liked this specific argument
+    existing_like = db.query(models.ArgumentLike).filter(
+        models.ArgumentLike.argument_id == argument_id, 
+        models.ArgumentLike.user_id == current_user.id
+    ).first()
+    
+    if existing_like:
+        # TOGGLE OFF: User clicked the heart again, remove the like
+        db.delete(existing_like)
+        argument.likes_count -= 1
+    else:
+        # TOGGLE ON: User liked the argument
+        new_like = models.ArgumentLike(argument_id=argument_id, user_id=current_user.id)
+        db.add(new_like)
+        argument.likes_count += 1
+        
+    # Save changes
+    db.commit()
+    db.refresh(argument)
+
+    return argument
