@@ -357,3 +357,41 @@ def upload_image(
     
     return {"image_url": f"{request.base_url}uploads/{unique_filename}"}
 
+
+    # endpoint to delete a post and its physical image file
+@app.delete("/posts/{post_id}")
+def delete_post(
+    post_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # find the post
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+        
+    # Security Check: Only the owner can delete their post
+    if post.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this post")
+        
+    # Delete the physical image file from the Raspberry Pi to save disk space!
+    try:
+        # Extract filename from the URL (e.g., http://100.x.x.x/uploads/uuid.jpg -> uuid.jpg)
+        filename = post.image_url.split("/")[-1]
+        file_path = os.path.join("uploads", filename)
+        
+        # if the file exists on the Pi, delete it
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"Error deleting physical file: {e}") # Just log it, don't crash
+        
+    # Delete the post from the database
+    # Note: Because we used cascade="all, delete-orphan" in models.py, 
+    # all arguments and votes linked to this post will be automatically deleted!
+    db.delete(post)
+    db.commit()
+    
+    return {"message": "Post successfully deleted"}
+
