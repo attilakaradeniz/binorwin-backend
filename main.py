@@ -286,24 +286,25 @@ def delete_argument(
 
 
 # endpoint to delete a post (Hidden Admin Mode)
-@app.delete("/posts/{post_id}")
-def delete_post(post_id: int, admin_key: str, db: Session = Depends(get_db)):
-    # simple security check: Only allow deletion if the correct secret key is provided
-    if admin_key != "supersecretdev":
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin key")
+# ACTIVATE THIS IF NECESSARY AN INTERVENTION VIA ADMIN
+# @app.delete("/posts/{post_id}")
+# def delete_post(post_id: int, admin_key: str, db: Session = Depends(get_db)):
+#     # simple security check: Only allow deletion if the correct secret key is provided
+#     if admin_key != "supersecretdev":
+#         raise HTTPException(status_code=403, detail="Forbidden: Invalid admin key")
         
-    # find the post in the database
-    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+#     # find the post in the database
+#     post = db.query(models.Post).filter(models.Post.id == post_id).first()
     
-    # if the post doesn't exist, return a 404 error
-    if not post:
-        raise HTTPException(status_code=404, detail="Post not found")
+#     # if the post doesn't exist, return a 404 error
+#     if not post:
+#         raise HTTPException(status_code=404, detail="Post not found")
         
-    # delete the post from the database
-    db.delete(post)
-    db.commit()
+#     # delete the post from the database
+#     db.delete(post)
+#     db.commit()
     
-    return {"message": f"Post {post_id} has been permanently deleted"}
+#     return {"message": f"Post {post_id} has been permanently deleted"}
 
 
 # Endpoint to like or unlike an argument (Protected)
