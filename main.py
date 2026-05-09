@@ -1,6 +1,6 @@
 from urllib import request
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -341,9 +341,11 @@ def like_argument(
     return argument
 
 @app.post("/upload/", response_model=dict)
-def upload_image(file: UploadFile = File(...),
+def upload_image(
+    request: Request,
+    file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user)
-    ):
+):
     # Generate a unique filename to avoid collisions
     file_extension = file.filename.split(".")[-1]
     unique_filename = f"{uuid.uuid4()}.{file_extension}"
