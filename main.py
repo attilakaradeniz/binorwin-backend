@@ -1,3 +1,5 @@
+from urllib import request
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
@@ -9,6 +11,7 @@ from database import engine, SessionLocal
 import os
 import shutil
 import uuid
+# from fastapi import Request
 
 # create the database tables based on our models
 models.Base.metadata.create_all(bind=engine)
@@ -350,5 +353,5 @@ def upload_image(file: UploadFile = File(...),
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    return {"image_url": f"http://localhost:8000/uploads/{unique_filename}"}
+    return {"image_url": f"{request.base_url}uploads/{unique_filename}"}
 
